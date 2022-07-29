@@ -11,34 +11,44 @@ import {
 } from "../constants";
 
 export default function Home() {
+  // converts 0 into a bignumber i.e {BigNumber: "000000000000000000"}
   const zero = BigNumber.from(0);
   const [walletConnected, setWalletConnected] = useState(false);
+  // useRef returns a mutable ref. object with a single property 'current' whose value is undefined for now
+  // web3ModalRef = {current: }
   const web3ModalRef = useRef();
+  // amount of CD tokens owned by an address
   const [balanceOfCryptoDevTokens, setBalanceOfCryptoDevTokens] = useState(zero);
   // overall no of minted tokens
   const [tokensMinted, setTokensMinted] = useState(zero);
   // amount of tokens you want to mint
   const [tokenAmount, setTokenAmount] = useState(zero);
+  // tokens to be claimed by the CD NFTs holder
   const [tokensToBeClaimed, setTokensToBeClaimed] = useState(zero);
   const [loading, setLoading] = useState(false);
 
+  // useEffect takes two arguments(a function & an array)
+  // useEffect(arrow function, [state variable])
+  // the array represents what changes will trigger this effect
+  // in this case, whenever the value of "walletconnected" changes - this effect will be called
   useEffect(() => {
     if (!walletConnected) {
+      // creates a new instance of Web3Modal class and assign it to reference object's current property
+      // this 'current' persists as long as page is open
       web3ModalRef.current = new Web3Modal({
         network: "rinkeby",
         providerOptions: {},
-        disableInjectedProvider: false
+        disableInjectedProvider: false,
       });
       connectWallet();
       getBalanceOfCryptoDevTokens();
       getTotalTokensMinted();
       getTokensToBeClaimed();
     }
-    getTokensToBeClaimed();
   }, [walletConnected]);
 
 
-  // connectWallet function 
+  // connectWallet : 
   const connectWallet = async () => {
     try {
       await getSignerOrProvider();
@@ -46,65 +56,29 @@ export default function Home() {
     } catch (err) {
       console.error(err);
     }
-  }
+  };
 
   // get signer or provider
   const getSignerOrProvider = async (needSigner = false) => {
+    // connect to metamask wallet
+    // since we stored 'web3modal' as a reference, we need to access 'current' value to get access to the underlying object
     const provider = await web3ModalRef.current.connect();
     const web3Provider = new providers.Web3Provider(provider);
     const { chainId } = await web3Provider.getNetwork();
 
+    // if not connected to rinkeby, alert the user to change the network and throw an error in console 
     if (chainId !== 4) {
       window.alert("Change network to rinkeby");
       throw new Error("not on rinekby network");
     }
 
+    // returns signer when needSigner is true
     if (needSigner) {
       const signer = web3Provider.getSigner();
       return signer;
     }
     return web3Provider;
   }
-
-  // withdraw function for owner to withdraw funds
-  const withdrawCoins = async () => {
-    try {
-      const signer = await getSignerOrProvider(true);
-      const tokenContract = new Contract(
-        TOKEN_CONTRACT_ADDRESS,
-        TOKEN_CONTRACT_ABI,
-        signer
-      );
-      const txn = await tokenContract.withdraw();
-      setLoading(true);
-      await txn.wait();
-      setLoading(false);
-      await getOwner();
-    } catch (err) {
-      console.error(err);
-    }
-  }
-  //getowner
-  const getOwner = async () => {
-    try {
-      const provider = await getProviderOrSigner();
-      const nftContract = new Contract(
-        TOKEN_CONTRACT_ADDRESS,
-        TOKEN_CONTRACT_ABI,
-        provider);
-      // call the owner function from the contract
-      const _owner = await tokenContract.owner();
-      // we get signer to extract address of currently connected Metamask account
-      const signer = await getProviderOrSigner(true);
-      // Get the address associated to signer which is connected to Metamask
-      const address = await signer.getAddress();
-      if (address.toLowerCase() === _owner.toLowerCase()) {
-        setIsOwner(true);
-      }
-    } catch (err) {
-      console.error(err.message);
-    }
-  };
 
   // claim function for nft holders
   const claimCryptoDevTokens = async () => {
@@ -138,8 +112,12 @@ export default function Home() {
         TOKEN_CONTRACT_ABI,
         signer
       );
+      // total eth need to mint 'amount' no of CD tokens
       const value = 0.001 * amount;
       const txn = await tokenContract.mint(amount, {
+        // value.toString() converts value into string as parseEther takes string only
+        // utils.parseEther converts the string value into a bignumber
+        // {BigNumber: "value * 10**18"}
         value: utils.parseEther(value.toString())
       });
       setLoading(true);
@@ -164,8 +142,12 @@ export default function Home() {
         TOKEN_CONTRACT_ABI,
         provider
       );
+      // get signer to get access to the address of the currently connected metamask account
       const signer = await getSignerOrProvider(true);
+      // get the address 
       const address = await signer.getAddress();
+      // get the no of CD tokens owned by this address
+      // balance is a BigNumber 
       const balance = await tokenContract.balanceOf(address);
       setBalanceOfCryptoDevTokens(balance);
     } catch (err) {
@@ -177,7 +159,9 @@ export default function Home() {
   // get overall no of tokens minted
   const getTotalTokensMinted = async () => {
     try {
+      // get provider from web3modal(in this case: metamask)
       const provider = await getSignerOrProvider();
+      // create an instance of "CryptoDevToken.sol" contract
       const tokenContract = new Contract(
         TOKEN_CONTRACT_ADDRESS,
         TOKEN_CONTRACT_ABI,
@@ -194,24 +178,30 @@ export default function Home() {
   const getTokensToBeClaimed = async () => {
     try {
       const provider = await getSignerOrProvider();
+      // create an instance of CD's nft contract
       const nftContract = new Contract(
         NFT_CONTRACT_ADDRESS,
         NFT_CONTRACT_ABI,
         provider
       );
+      // create an instance of CD's token contract
       const tokenContract = new Contract(
         TOKEN_CONTRACT_ADDRESS,
         TOKEN_CONTRACT_ABI,
         provider
       );
+      // we need to get signer to get address of the current connected metamask account
       const signer = await getSignerOrProvider(true);
+      // get address
       const address = await signer.getAddress();
+      // get the no of CD NFTs owned by this address
       const balance = await nftContract.balanceOf(address);
 
       if (balance === zero) {
         setTokensToBeClaimed(zero);
         console.log('nincompoop!');
       } else {
+        // amount variable to keep track of no of unclaimed CD tokens by the CD nft holder
         var amount = 0;
 
         for (var i; i < balance; i++) {
@@ -223,6 +213,7 @@ export default function Home() {
           }
           console.log("tokens claimed:", balance)
         }
+        // tokensToBeClaimed is initialized to BigNumber, so we need to conver 'amount' to BigNumber
         setTokensToBeClaimed(BigNumber.from(amount));
       }
     } catch (err) {
@@ -248,7 +239,7 @@ export default function Home() {
           </div>
           <button className={styles.button} onClick={claimCryptoDevTokens}>Claim Tokens</button>
         </div>
-      )
+      );
     }
 
     return (
